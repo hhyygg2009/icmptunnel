@@ -27,25 +27,49 @@
 #include <stdio.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-
+#include <string.h>
 #include "resolve.h"
 
-int resolve(const char *hostname, uint32_t *address)
+
+
+
+int resolve(const char* hostname, uint32_t* address)
 {
-    /* try to interpret the hostname as an ip address. */
-    *address = ntohl(inet_addr(hostname));
+	/* try to interpret the hostname as an ip address. */
+	*address = ntohl(inet_addr(hostname));
+	/* if we don't have an ip address, look up the name in dns. */
+	if (*address == INADDR_NONE) {		
+		int ret;
+		struct addrinfo hints, * result,  * result_pointer;;
+		int rv;
 
-    /* if we don't have an ip address, look up the name in dns. */
-    if (*address == INADDR_NONE) {
-        struct hostent *h = gethostbyname(hostname);
+		memset(&hints, 0, sizeof(struct addrinfo));//--- 必须先清零再使用
+		hints.ai_family = AF_UNSPEC; // use AF_INET6 to force IPv6
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_CANONNAME;
+		hints.ai_protocol = 0;
+		if ((rv = getaddrinfo(hostname, NULL, &hints, &result)) != 0)
+		{
+			
+			return -1;
+		}
 
-        if (!h) {
-            fprintf(stderr, "unable to resolve: %s\n", hostname);
-            return 1;
-        }
+		result_pointer = result;
+		{
+			char hostname[1025] = "";
+			ret = getnameinfo(result_pointer->ai_addr, result_pointer->ai_addrlen, hostname, sizeof(hostname), NULL, 0, NI_NUMERICHOST);
+			if (ret != 0)
+			{
+				return 1;
+			}
+			else
+			{
+				printf("IP: %s \n", hostname);
+			}
+		}
+		freeaddrinfo(result);
+		*address = ntohl(inet_addr(hostname));
+	}
 
-        *address = ntohl(*(uint32_t*)h->h_addr_list[0]);
-    }
-
-    return 0;
+	return 0;
 }
